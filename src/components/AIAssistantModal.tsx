@@ -20,9 +20,6 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
       setAnalyzing(true);
       setAnalysis(null);
 
-      // Simulate an AI scanning the text and taking an action
-      // In a real app, this is where you'd call fetch('/api/gemini', { body: { text: activityText } })
-      
       const lowerText = activityText.toLowerCase();
       const isUnwell = lowerText.includes("unwell") || lowerText.includes("poor") || lowerText.includes("sick");
       const isVaccine = lowerText.includes("vaccine") || lowerText.includes("shot");
@@ -51,7 +48,7 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
             ]
           });
         } else if (isMeds) {
-           setAnalysis({
+          setAnalysis({
             type: "info",
             title: "Medication Instructions Detected",
             summary: "This document contains dosage or medication instructions.",
@@ -61,7 +58,7 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
             ]
           });
         } else {
-            setAnalysis({
+          setAnalysis({
             type: "neutral",
             title: "Document Analyzed",
             summary: "I've read the document and saved it to the timeline. No immediate medical action items were detected.",
@@ -70,7 +67,6 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
             ]
           });
         }
-
         setAnalyzing(false);
       }, 1500);
     }
@@ -94,10 +90,9 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
         </DialogHeader>
 
         <div className="pt-4 min-h-[200px]">
-             {/* Source Context */}
-            <div className="mb-6 p-3 rounded-lg bg-accent/30 border border-border/50 text-xs text-muted-foreground italic line-clamp-2">
-                "{activityText.replace("Document text extracted:\n", "")}"
-            </div>
+          <div className="mb-6 p-3 rounded-lg bg-accent/30 border border-border/50 text-xs text-muted-foreground italic line-clamp-2">
+            "{activityText.replace("Document text extracted:\n", "")}"
+          </div>
 
           <AnimatePresence mode="wait">
             {analyzing ? (
@@ -109,8 +104,8 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
                 className="flex flex-col items-center justify-center py-8 text-center"
               >
                 <div className="relative mb-4">
-                     <div className="absolute inset-0 rounded-full blur-xl bg-violet/20 animate-pulse" />
-                     <Loader2 className="h-8 w-8 text-violet animate-spin relative z-10" />
+                  <div className="absolute inset-0 rounded-full blur-xl bg-violet/20 animate-pulse" />
+                  <Loader2 className="h-8 w-8 text-violet animate-spin relative z-10" />
                 </div>
                 <p className="text-sm font-medium text-foreground">Reading medical document...</p>
                 <p className="text-xs text-muted-foreground mt-1">Cross-referencing symptoms and generating actionable insights.</p>
@@ -123,53 +118,53 @@ export function AIAssistantModal({ open, onOpenChange, onActionSelect, activityT
                 className="space-y-6"
               >
                 <div className={`p-4 rounded-xl border ${
-                    analysis.type === 'warning' ? 'bg-destructive/10 border-destructive/20' : 
-                    analysis.type === 'success' ? 'bg-secondary/10 border-secondary/20' : 
-                    'bg-primary/5 border-primary/10'
+                  analysis.type === 'warning' ? 'bg-destructive/10 border-destructive/20' :
+                  analysis.type === 'success' ? 'bg-secondary/10 border-secondary/20' :
+                  'bg-primary/5 border-primary/10'
                 }`}>
-                    <h4 className={`text-base font-bold mb-1 flex items-center gap-2 ${
-                        analysis.type === 'warning' ? 'text-destructive' : 
-                        analysis.type === 'success' ? 'text-secondary' : 
-                        'text-primary'
-                    }`}>
-                        {analysis.type === 'warning' && <AlertCircle className="h-4 w-4" />}
-                        {analysis.type === 'success' && <Sparkles className="h-4 w-4" />}
-                        {analysis.title}
-                    </h4>
-                    <p className="text-sm text-foreground/80 leading-relaxed">
-                        {analysis.summary}
-                    </p>
+                  <h4 className={`text-base font-bold mb-1 flex items-center gap-2 ${
+                    analysis.type === 'warning' ? 'text-destructive' :
+                    analysis.type === 'success' ? 'text-secondary' :
+                    'text-primary'
+                  }`}>
+                    {analysis.type === 'warning' && <AlertCircle className="h-4 w-4" />}
+                    {analysis.type === 'success' && <Sparkles className="h-4 w-4" />}
+                    {analysis.title}
+                  </h4>
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {analysis.summary}
+                  </p>
                 </div>
 
                 <div>
-                    <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Recommended Actions</h5>
-                    <div className="space-y-2">
-                        {analysis.actions.map((action: any, i: number) => (
-                            <button 
-                                key={i}
-                                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                                    action.primary 
-                                        ? 'bg-violet hover:bg-violet/90 border-violet text-white shadow-sm' 
-                                        : 'bg-card hover:bg-accent border-border text-foreground hover:border-border/80'
-                                }`}
-                                onClick={() => {
-                                  if (action.actionId && onActionSelect) {
-                                    onActionSelect(action.actionId);
-                                  } else {
-                                    onOpenChange(false);
-                                  }
-                                }}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className={`flex items-center justify-center ${action.primary ? 'text-white/80' : 'text-muted-foreground'}`}>
-                                        <action.icon className="h-4 w-4" />
-                                    </div>
-                                    <span className="text-sm font-medium">{action.text}</span>
-                                </div>
-                                {!action.primary && <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
-                            </button>
-                        ))}
-                    </div>
+                  <h5 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Recommended Actions</h5>
+                  <div className="space-y-2">
+                    {analysis.actions.map((action: any, i: number) => (
+                      <button
+                        key={i}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                          action.primary
+                            ? 'bg-violet hover:bg-violet/90 border-violet text-white shadow-sm'
+                            : 'bg-card hover:bg-accent border-border text-foreground hover:border-border/80'
+                        }`}
+                        onClick={() => {
+                          if (action.actionId && onActionSelect) {
+                            onActionSelect(action.actionId);
+                          } else {
+                            onOpenChange(false);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`flex items-center justify-center ${action.primary ? 'text-white/80' : 'text-muted-foreground'}`}>
+                            <action.icon className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-medium">{action.text}</span>
+                        </div>
+                        {!action.primary && <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             ) : null}

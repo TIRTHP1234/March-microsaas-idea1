@@ -5,7 +5,7 @@ import {
   PawPrint, Syringe, Pill, HeartPulse, Calendar, FileText,
   Bell, Settings, LogOut, Plus, Search, TrendingUp,
   Activity, Droplets, Moon, Sun, Utensils, Camera, Shield, AlertCircle,
-  ChevronRight, Weight, Clock, Thermometer, Edit, Trash2, X, Sparkles, Bot
+  ChevronRight, Weight, Clock, Thermometer, Edit, Trash2, X, Sparkles, Bot,
 } from "lucide-react";
 import Tesseract from "tesseract.js";
 import { toast } from "sonner";
@@ -68,20 +68,15 @@ const Dashboard = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (pets.length === 0) {
-      toast.error("Please add a pet first!");
-      return;
-    }
-
     const currentPet = pets[activePet] || pets[0];
 
     toast.promise(
       Tesseract.recognize(file, 'eng').then(async ({ data: { text } }) => {
         let loggedActivity = Promise.resolve();
-        
+
         const lowerText = text.toLowerCase();
         const negativeKeywords = ["unwell", "poor condition", "sick", "disease", "infection", "abnormal", "critical", "pain"];
-        
+
         const hasNegativeWords = negativeKeywords.some(kw => lowerText.includes(kw));
 
         if (addActivity && currentPet) {
@@ -94,7 +89,6 @@ const Dashboard = () => {
         }
 
         if (hasNegativeWords && updatePet && currentPet) {
-          // Drop health score by a randomized 5-15% amount to simulate dynamic updates if text contains bad words
           const currentScore = currentPet.healthScore || 100;
           const dropAmount = Math.floor(Math.random() * 10) + 5;
           const newScore = Math.max(0, currentScore - dropAmount);
@@ -102,10 +96,10 @@ const Dashboard = () => {
           await updatePet(currentPet.id, {
             healthScore: newScore
           });
-          
+
           setTimeout(() => {
             toast.warning(`${currentPet.name}'s health score decreased to ${newScore}% based on the recent medical document. Please consult your vet.`);
-          }, 1000); // Delayed slightly so it appears right after success toast
+          }, 1000);
         }
 
         return loggedActivity;
@@ -116,8 +110,9 @@ const Dashboard = () => {
         error: 'Failed to extract text from document',
       }
     );
-    
-    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    // Reset file input
+    event.target.value = "";
   };
 
   const handleLogout = async () => {
@@ -149,17 +144,7 @@ const Dashboard = () => {
   // Use dynamic default images if empty
   const getPetImage = (petObj: any) => {
     if (petObj.image) return petObj.image;
-    
-    // Deterministically pick an image based on string hash so it stays consistent per pet
-    const hash = petObj.id ? petObj.id.split('').reduce((a: number, b: string) => a + b.charCodeAt(0), 0) : 0;
-    
-    if (petObj.species === "Cat") {
-      const catImages = [catPortrait, catMaineCoon, catGinger];
-      return catImages[hash % catImages.length];
-    } else {
-      const dogImages = [dogPortrait, dogGolden, dogFrenchie, dogSamoyed];
-      return dogImages[hash % dogImages.length];
-    }
+    return petObj.species === "Cat" ? catPortrait : dogPortrait;
   };
 
   // Helper map for dynamically parsing icons from DB string
@@ -172,7 +157,7 @@ const Dashboard = () => {
     ? activities.filter(a => a.petId === pet.id && a.text.toLowerCase().includes(searchQuery.toLowerCase()))
     : activities;
 
-  // Filter dynamic events for Records tab (assuming anything marked "vaccine" or "medication" is a record)
+  // Filter dynamic events for Records tab
   const petRecords = pet ? events.filter(e => e.petId === pet.id && (e.type === "vaccine" || e.type === "medication")) : [];
 
   // Compute stats
@@ -185,6 +170,15 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Hidden file input for OCR */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
@@ -212,7 +206,7 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={toggleDarkMode} className="p-2.5 rounded-lg hover:bg-accent transition-colors" title="Toggle Light/Dark Mode">
+            <button onClick={toggleDarkMode} className="relative p-2.5 rounded-lg hover:bg-accent transition-colors">
               {isDarkMode ? <Sun className="h-4 w-4 text-muted-foreground" /> : <Moon className="h-4 w-4 text-muted-foreground" />}
             </button>
             <div className="w-px h-6 bg-border mx-1" />
@@ -245,7 +239,7 @@ const Dashboard = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Avg Health", value: `${avgHealth}%`, icon: HeartPulse, color: "text-foreground", bg: "bg-accent", trend: pts => pts > 0 ? "Tracking" : "Need Data" },
+            { label: "Avg Health", value: `${avgHealth}%`, icon: HeartPulse, color: "text-foreground", bg: "bg-accent", trend: (pts: number) => pts > 0 ? "Tracking" : "Need Data" },
             { label: "Active Meds", value: activeMedsCount.toString(), icon: Pill, color: "text-foreground", bg: "bg-accent", trend: "Scheduled" },
             { label: "Appointments", value: events.length.toString(), icon: Calendar, color: "text-foreground", bg: "bg-accent", trend: "Upcoming" },
             { label: "Total Pets", value: pets.length.toString(), icon: PawPrint, color: "text-foreground", bg: "bg-accent", trend: "Managed" },
@@ -270,42 +264,29 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Quick Actions</h2>
             <button
-              onClick={() => { 
-                if (pets.length === 0) {
-                  toast.error("Please add a pet first!");
-                  return;
-                }
-                setEventToEdit(null); 
-                setDefaultEventType(undefined);
-                setShowAddEvent(true); 
-              }}
+              onClick={() => { setEventToEdit(null); setDefaultEventType(undefined); setShowAddEvent(true); }}
               className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
             >
               <Plus className="h-3 w-3" /> Add Event
             </button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
             {quickActions.map((a) => (
               <button key={a.label}
                 onClick={() => {
-                  if (pets.length === 0) {
-                    toast.error("Please add a pet first to perform actions!");
-                    return;
-                  }
                   if (a.id === "doc") {
                     fileInputRef.current?.click();
-                    return;
+                  } else if (a.id === "vaccine") {
+                    setDefaultEventType("vaccine"); setEventToEdit(null); setShowAddEvent(true);
+                  } else if (a.id === "med") {
+                    setDefaultEventType("medication"); setEventToEdit(null); setShowAddEvent(true);
+                  } else if (a.id === "health") {
+                    setDefaultEventType("appointment"); setEventToEdit(null); setShowAddEvent(true);
                   }
-                  setEventToEdit(null); 
-                  if (a.id === "vaccine") setDefaultEventType("vaccine");
-                  else if (a.id === "med") setDefaultEventType("medication");
-                  else setDefaultEventType("other");
-                  setShowAddEvent(true);
                 }}
                 className="flex flex-col items-center gap-3 rounded-lg border border-border/60 bg-card p-4 hover:border-border hover:shadow-sm transition-all duration-200">
-                <div className="h-10 w-10 rounded-md bg-accent flex items-center justify-center border border-border/50">
-                  <a.icon className="h-5 w-5 text-foreground" />
+                <div className={`h-10 w-10 rounded-md ${a.id === 'doc' ? a.color : 'bg-accent'} flex items-center justify-center border border-border/50`}>
+                  <a.icon className={`h-5 w-5 ${a.id === 'doc' ? 'text-white' : 'text-foreground'}`} />
                 </div>
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{a.label}</span>
               </button>
@@ -435,7 +416,7 @@ const Dashboard = () => {
                                     AI Health Insights
                                 </h4>
                                 <p className="text-xs text-foreground/80 leading-relaxed">
-                                    {pet.healthScore < 80 
+                                    {pet.healthScore < 80
                                       ? "Given the recent drop in health score, consider a bland diet of boiled chicken and white rice. Ensure they have constant access to fresh water and avoid rich or fatty foods."
                                       : "Health condition is excellent. Maintain current balanced diet. You can offer occasional healthy treats like baby carrots or apple slices."}
                                 </p>
@@ -702,8 +683,8 @@ const Dashboard = () => {
       )}
 
       {selectedActivityForAI && (
-        <AIAssistantModal 
-          open={!!selectedActivityForAI} 
+        <AIAssistantModal
+          open={!!selectedActivityForAI}
           onOpenChange={(open) => !open && setSelectedActivityForAI(null)}
           onActionSelect={(actionType) => {
             setSelectedActivityForAI(null);
