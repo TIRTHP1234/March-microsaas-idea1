@@ -10,9 +10,10 @@ interface AddEventModalProps {
     petId: string;
     petName: string;
     editEventData?: any; // Pass existing event data to switch to edit mode
+    defaultType?: "vaccine" | "appointment" | "medication" | "other";
 }
 
-export function AddEventModal({ open, onOpenChange, petId, petName, editEventData }: AddEventModalProps) {
+export function AddEventModal({ open, onOpenChange, petId, petName, editEventData, defaultType }: AddEventModalProps) {
     const { user } = useAuth();
     const { addEvent, updateEvent } = useEvents(user?.uid);
 
@@ -34,10 +35,10 @@ export function AddEventModal({ open, onOpenChange, petId, petName, editEventDat
                     urgent: editEventData.urgent || false,
                 });
             } else {
-                setFormData({ title: "", date: "", type: "appointment", urgent: false });
+                setFormData({ title: "", date: "", type: defaultType || "appointment", urgent: false });
             }
         }
-    }, [open, editEventData]);
+    }, [open, editEventData, defaultType]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

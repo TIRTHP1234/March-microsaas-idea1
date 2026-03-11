@@ -1,26 +1,34 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PawPrint, Syringe, Pill, HeartPulse, Calendar, FileText,
   Bell, Settings, LogOut, Plus, Search, TrendingUp,
-  Activity, Droplets, Moon, Utensils, Camera, Shield, AlertCircle,
-  ChevronRight, Weight, Clock, Thermometer, Edit, Trash2, X,
+  Activity, Droplets, Moon, Sun, Utensils, Camera, Shield, AlertCircle,
+  ChevronRight, Weight, Clock, Thermometer, Edit, Trash2, X, Sparkles, Bot,
 } from "lucide-react";
+import Tesseract from "tesseract.js";
+import { toast } from "sonner";
 import dogPortrait from "@/assets/dog-portrait.jpg";
 import catPortrait from "@/assets/cat-portrait.jpg";
+import dogGolden from "@/assets/dog_golden_retriever.png";
+import dogFrenchie from "@/assets/dog_french_bulldog.png";
+import dogSamoyed from "@/assets/dog_samoyed.png";
+import catMaineCoon from "@/assets/cat_maine_coon.png";
+import catGinger from "@/assets/cat_ginger.png";
 import { useAuth } from "@/lib/authContext";
 import { usePets } from "@/hooks/usePets";
 import { useEvents } from "@/hooks/useEvents";
-import { useActivities } from "@/hooks/useActivities";
+import { useActivities, PetActivity } from "@/hooks/useActivities";
 import { AddPetModal } from "@/components/AddPetModal";
 import { AddEventModal } from "@/components/AddEventModal";
+import { AIAssistantModal } from "@/components/AIAssistantModal";
 
 const quickActions = [
   { id: "vaccine", icon: Syringe, label: "Add Vaccine", color: "bg-teal-light text-secondary" },
   { id: "med", icon: Pill, label: "Log Medication", color: "bg-amber-light text-primary" },
   { id: "health", icon: HeartPulse, label: "Health Check", color: "bg-coral-light text-coral" },
-  { id: "doc", icon: FileText, label: "Upload Doc", color: "bg-violet-light text-violet" },
+  { id: "doc", icon: Sparkles, label: "AI Scan Doc", color: "bg-violet text-white shadow-sm shadow-violet/20" },
   { id: "photo", icon: Camera, label: "Add Photo", color: "bg-blue-light text-blue" },
   { id: "insurance", icon: Shield, label: "Insurance", color: "bg-teal-light text-secondary" },
 ];
@@ -28,9 +36,23 @@ const quickActions = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { pets, loading: petsLoading, deletePet } = usePets(user?.uid);
+  const { pets, loading: petsLoading, deletePet, updatePet } = usePets(user?.uid);
   const { events, loading: eventsLoading, deleteEvent } = useEvents(user?.uid);
-  const { activities } = useActivities(user?.uid);
+  const { activities, addActivity } = useActivities(user?.uid);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains("dark"));
+
+  const toggleDarkMode = () => {
+    const root = document.documentElement;
+    if (root.classList.contains("dark")) {
+      root.classList.remove("dark");
+      setIsDarkMode(false);
+    } else {
+      root.classList.add("dark");
+      setIsDarkMode(true);
+    }
+  };
 
   const [activePet, setActivePet] = useState(0);
   const [activeTab, setActiveTab] = useState<"overview" | "records" | "timeline">("overview");
@@ -38,7 +60,60 @@ const Dashboard = () => {
   const [petToEdit, setPetToEdit] = useState<any>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventToEdit, setEventToEdit] = useState<any>(null);
+  const [defaultEventType, setDefaultEventType] = useState<"vaccine" | "appointment" | "medication" | "other" | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedActivityForAI, setSelectedActivityForAI] = useState<PetActivity | null>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const currentPet = pets[activePet] || pets[0];
+
+    toast.promise(
+      Tesseract.recognize(file, 'eng').then(async ({ data: { text } }) => {
+        let loggedActivity = Promise.resolve();
+
+        const lowerText = text.toLowerCase();
+        const negativeKeywords = ["unwell", "poor condition", "sick", "disease", "infection", "abnormal", "critical", "pain"];
+
+        const hasNegativeWords = negativeKeywords.some(kw => lowerText.includes(kw));
+
+        if (addActivity && currentPet) {
+          loggedActivity = addActivity({
+            petId: currentPet.id,
+            petName: currentPet.name,
+            text: `Document text extracted:\n${text.substring(0, 100)}...${hasNegativeWords ? " (Flagged: Potential Health Issue)" : ""}`,
+            iconName: "FileText" as any
+          }) as unknown as Promise<void>;
+        }
+
+        if (hasNegativeWords && updatePet && currentPet) {
+          const currentScore = currentPet.healthScore || 100;
+          const dropAmount = Math.floor(Math.random() * 10) + 5;
+          const newScore = Math.max(0, currentScore - dropAmount);
+
+          await updatePet(currentPet.id, {
+            healthScore: newScore
+          });
+
+          setTimeout(() => {
+            toast.warning(`${currentPet.name}'s health score decreased to ${newScore}% based on the recent medical document. Please consult your vet.`);
+          }, 1000);
+        }
+
+        return loggedActivity;
+      }),
+      {
+        loading: 'Extracting text via OCR...',
+        success: 'Text extracted and analyzed!',
+        error: 'Failed to extract text from document',
+      }
+    );
+
+    // Reset file input
+    event.target.value = "";
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -82,7 +157,7 @@ const Dashboard = () => {
     ? activities.filter(a => a.petId === pet.id && a.text.toLowerCase().includes(searchQuery.toLowerCase()))
     : activities;
 
-  // Filter dynamic events for Records tab (assuming anything marked "vaccine" or "medication" is a record)
+  // Filter dynamic events for Records tab
   const petRecords = pet ? events.filter(e => e.petId === pet.id && (e.type === "vaccine" || e.type === "medication")) : [];
 
   // Compute stats
@@ -95,6 +170,15 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Hidden file input for OCR */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
@@ -122,12 +206,8 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="relative p-2.5 rounded-lg hover:bg-accent transition-colors">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              {urgentAlerts.length > 0 && <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />}
-            </button>
-            <button className="p-2.5 rounded-lg hover:bg-accent transition-colors">
-              <Settings className="h-4 w-4 text-muted-foreground" />
+            <button onClick={toggleDarkMode} className="relative p-2.5 rounded-lg hover:bg-accent transition-colors">
+              {isDarkMode ? <Sun className="h-4 w-4 text-muted-foreground" /> : <Moon className="h-4 w-4 text-muted-foreground" />}
             </button>
             <div className="w-px h-6 bg-border mx-1" />
             <div className="flex items-center gap-2">
@@ -159,7 +239,7 @@ const Dashboard = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
           className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Avg Health", value: `${avgHealth}%`, icon: HeartPulse, color: "text-foreground", bg: "bg-accent", trend: pts => pts > 0 ? "Tracking" : "Need Data" },
+            { label: "Avg Health", value: `${avgHealth}%`, icon: HeartPulse, color: "text-foreground", bg: "bg-accent", trend: (pts: number) => pts > 0 ? "Tracking" : "Need Data" },
             { label: "Active Meds", value: activeMedsCount.toString(), icon: Pill, color: "text-foreground", bg: "bg-accent", trend: "Scheduled" },
             { label: "Appointments", value: events.length.toString(), icon: Calendar, color: "text-foreground", bg: "bg-accent", trend: "Upcoming" },
             { label: "Total Pets", value: pets.length.toString(), icon: PawPrint, color: "text-foreground", bg: "bg-accent", trend: "Managed" },
@@ -184,7 +264,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Quick Actions</h2>
             <button
-              onClick={() => { setEventToEdit(null); setShowAddEvent(true); }}
+              onClick={() => { setEventToEdit(null); setDefaultEventType(undefined); setShowAddEvent(true); }}
               className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
             >
               <Plus className="h-3 w-3" /> Add Event
@@ -193,9 +273,20 @@ const Dashboard = () => {
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
             {quickActions.map((a) => (
               <button key={a.label}
+                onClick={() => {
+                  if (a.id === "doc") {
+                    fileInputRef.current?.click();
+                  } else if (a.id === "vaccine") {
+                    setDefaultEventType("vaccine"); setEventToEdit(null); setShowAddEvent(true);
+                  } else if (a.id === "med") {
+                    setDefaultEventType("medication"); setEventToEdit(null); setShowAddEvent(true);
+                  } else if (a.id === "health") {
+                    setDefaultEventType("appointment"); setEventToEdit(null); setShowAddEvent(true);
+                  }
+                }}
                 className="flex flex-col items-center gap-3 rounded-lg border border-border/60 bg-card p-4 hover:border-border hover:shadow-sm transition-all duration-200">
-                <div className="h-10 w-10 rounded-md bg-accent flex items-center justify-center border border-border/50">
-                  <a.icon className="h-5 w-5 text-foreground" />
+                <div className={`h-10 w-10 rounded-md ${a.id === 'doc' ? a.color : 'bg-accent'} flex items-center justify-center border border-border/50`}>
+                  <a.icon className={`h-5 w-5 ${a.id === 'doc' ? 'text-white' : 'text-foreground'}`} />
                 </div>
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{a.label}</span>
               </button>
@@ -263,7 +354,7 @@ const Dashboard = () => {
                         className="rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm"
                       >
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6">
-                          <img src={pet.image} alt={pet.name} className="h-20 w-20 rounded-md object-cover shadow-sm border border-border/50" />
+                          <img src={getPetImage(pet)} alt={pet.name} className="h-20 w-20 rounded-md object-cover shadow-sm border border-border/50" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 mb-1.5">
                               <h3 className="text-3xl font-bold text-foreground font-display">{pet.name}</h3>
@@ -313,6 +404,24 @@ const Dashboard = () => {
                                   </div>
                                 ))}
                               </div>
+
+                              {/* Dynamic AI Insight Recommendation */}
+                              <div className={`mb-4 rounded-lg border p-4 ${
+                                pet.healthScore < 80 ? "border-destructive/20 bg-destructive/5" : "border-violet/20 bg-violet/5"
+                              }`}>
+                                <h4 className={`text-sm font-bold flex items-center gap-2 mb-2 ${
+                                    pet.healthScore < 80 ? "text-destructive" : "text-violet"
+                                }`}>
+                                    <Bot className="h-4 w-4" />
+                                    AI Health Insights
+                                </h4>
+                                <p className="text-xs text-foreground/80 leading-relaxed">
+                                    {pet.healthScore < 80
+                                      ? "Given the recent drop in health score, consider a bland diet of boiled chicken and white rice. Ensure they have constant access to fresh water and avoid rich or fatty foods."
+                                      : "Health condition is excellent. Maintain current balanced diet. You can offer occasional healthy treats like baby carrots or apple slices."}
+                                </p>
+                              </div>
+
                               <div className="flex flex-wrap gap-2">
                                 {[
                                   { icon: FileText, label: "View Records", onClick: () => setActiveTab("records") },
@@ -374,7 +483,7 @@ const Dashboard = () => {
                               ) : filteredActivity.filter(a => a.petId === pet.id).map((a, i) => {
                                 const IconComp = getIconComponent(a.iconName);
                                 return (
-                                  <div key={i} className="flex items-center gap-3">
+                                  <button key={i} onClick={() => setSelectedActivityForAI(a as PetActivity)} className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer">
                                     <div className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center shrink-0">
                                       <IconComp className="h-3.5 w-3.5 text-muted-foreground" />
                                     </div>
@@ -384,7 +493,7 @@ const Dashboard = () => {
                                         {a.createdAt ? new Date(a.createdAt?.toDate?.() || Date.now()).toLocaleDateString() : 'Just now'}
                                       </div>
                                     </div>
-                                  </div>
+                                  </button>
                                 )
                               })}
                             </div>
@@ -409,7 +518,7 @@ const Dashboard = () => {
                 ) : filteredActivity.slice(0, 5).map((a, i) => {
                   const IconComp = getIconComponent(a.iconName);
                   return (
-                    <div key={i} className="flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors">
+                    <button key={i} onClick={() => setSelectedActivityForAI(a as PetActivity)} className="w-full text-left flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors cursor-pointer">
                       <div className="h-9 w-9 rounded-lg bg-accent flex items-center justify-center shrink-0">
                         <IconComp className="h-4 w-4 text-muted-foreground" />
                       </div>
@@ -420,7 +529,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -569,6 +678,24 @@ const Dashboard = () => {
           petId={pet.id}
           petName={pet.name}
           editEventData={eventToEdit}
+          defaultType={defaultEventType}
+        />
+      )}
+
+      {selectedActivityForAI && (
+        <AIAssistantModal
+          open={!!selectedActivityForAI}
+          onOpenChange={(open) => !open && setSelectedActivityForAI(null)}
+          onActionSelect={(actionType) => {
+            setSelectedActivityForAI(null);
+            if (actionType && pet) {
+              setDefaultEventType(actionType as any);
+              setEventToEdit(null);
+              setShowAddEvent(true);
+            }
+          }}
+          activityText={selectedActivityForAI.text}
+          petName={selectedActivityForAI.petName}
         />
       )}
     </div>
